@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>Test</title>
+	<title>Socket.IO chat</title>
+	<style>
+		* { margin: 0; padding: 0; box-sizing: border-box; }
+		body { font: 13px Helvetica, Arial; }
+		#message { background: #000; padding: 3px; position: fixed; bottom: 0; width: 100%; }
+		#message input { border: 0; padding: 10px; width: 90%; margin-right: .5%; }
+		#message button { width: 9%; background: rgb(130, 224, 255); border: none; padding: 10px; }
+		#messages { list-style-type: none; margin: 0; padding: 0; }
+		#messages li { padding: 5px 10px; }
+		#messages li:nth-child(odd) { background: #eee; }
+		.channel {cursor: pointer; color: #000080; font-weight: bold}
+	</style>
+</head>
+<body>
+	<h4>
+		Connected users
+	</h4>
+	<ul id="users"></ul>
+	
+	<br>
+	<br>
+	
+	<h4>
+		Disconnected users
+	</h4>
+	<ul id="disconnected"></ul>
+	
+	<br>
+	<br>
+	
+	<h4>
+		Channel list
+	</h4>
+	<ul id="channels"></ul>
+	
+	<br>
+	<br>
+	
+	<h4>
+		Connected to the current Channel
+	</h4>
+	<ul id="currentChannel"></ul>
+	
+	<br>
+	<br>
+	
+	<h4>
+		Create a channel
+	</h4>
+	
+	<form id="channel" action="">
+		<input id="chan" autocomplete="off" />
+		<button>Send</button>
+	</form>
+	
+	<br>
+	<br>
+
+	<h4>Messages</h4>
+	<ul id="messages"></ul>
+
+	
+	
+	<form id="message" action="">
+		<div id="typing"></div>
+		<input id="msg" autocomplete="off" />
+		<button>Send</button>
+	</form>
+	
+	
+	<script src="/socket.io/socket.io.js"></script>
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+	<script>
+		var username;
+		
+		(function ($) {
+			var socket = io();
+			
+			var inputMessage = $('#msg'),
+				inputChannel = $('#chan'),
+				messages = $('#messages'),
+				users = $('#users'),
+				disconnected = $('#disconnected'),
+				channels = $('#channels'),
+				currentChannel = $('#currentChannel'),
+				typing = $('#typing');
+			
+			if (localStorage.getItem("username")) username = localStorage.getItem("username");
+			else username = prompt("Your name: ");
+			
+			localStorage.setItem("username", username);
+			
+			// Déclencher l'évènement de nouvel utilisateur
+			socket.emit('chat.join', username);
+			
+			// Mettre à jour la liste des utilisateurs déconnectés
+			socket.on('chat.disconnectedUserList', function (data) {
+				disconnected.empty();
+				
+				for (var i = 0; i < data.length; i++) {
+					disconnected.append("<li>" + data[i] + "</li>")
+				}
+			});
+			
+			// Mettre à jour la liste des utilisateurs connectés
+			socket.on('chat.userList', function (data) {
+				users.empty();
+				
+				for (var i = 0; i < data.length; i++) {
+					users.append("<li>" + data[i] + "</li>")
+				}
+			});
+			
+			// Ajouter les messages à la salle
+			socket.on('channel.initMessages', function (msgsData) {
+				console.log(msgsData);
+				messages.empty();
+				for (var i = msgsData.length - 1; i >= 0; i--) {
+					msgsData[i] = JSON.parse(msgsData[i]);
+					if (msgsData[i].username === username) messages.append("<li>Moi: " + msgsData[i].message + "</li>");
+					else messages.append("<li>" + msgsData[i].username + ": " + msgsData[i].message + "</li>");
+				}
+			});
+			
+			// Ajouter les users à la salle
+			socket.on('channel.initUsers', function (usersData) {
+				console.log("user");
+				console.log(usersData);
+				currentChannel.empty();
+				for (var i = usersData.length - 1; i >= 0; i--) {
+					currentChannel.append("<li>" + usersData[i] + "</li>");
+				}
+			});
+			
+			// Ajouter un message dans la salle actuel
+			socket.on('channel.newMessage', function (msgData) {
+				msgData = JSON.parse(msgData);
+				if (msgData.username === username) messages.append("<li>Moi: " + msgData.message + "</li>");
+				else messages.append("<li>" + msgData.username + ": " + msgData.message + "</li>");
+			});
+			
+			// Mettre à jour la liste des salles.
+			socket.on('chat.channelList', function (channelsData) {
+				channels.empty();
+				
+				for (var i = 0; i < channelsData.length; i++) {
+					channels.append("<li class='channel'>" + channelsData[i] + "</li>")
+				}
+			});
+			
+			// Informer les utilisateurs de la salle du nouvel utilisateurs
+			socket.on('channel.userJoined', function (newUser) {
+				alert(newUser + ' joined your channel!')
+			});
+			
+			// Envoyer un nouveau message
+			$('#message').submit(function () {
+				socket.emit('channel.message', inputMessage.val());
+				inputMessage.val('');
+				return false;
+			});
+			
+			// Créer une channel
+			$('#channel').submit(function () {
+				socket.emit('channel.create', inputChannel.val());
+				inputChannel.val('');
+				return false;
+			});
+			
+			// Changer de channel
+			channels.on('click', '.channel', function () {
+				console.log("click");
+				socket.emit('chat.joinChannel', $(this).html());
+			});
+			
+			inputMessage.bind('input', function () {
+				socket.emit('channel.userIsTyping')
+			});
+			
+			//TODO :
+			socket.on('channel.userIsTyping', function (username) {
+				typing.append()
+			});
+		})(jQuery);
+	</script>
+</body>
+</html>
