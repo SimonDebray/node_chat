@@ -73,6 +73,8 @@ io.on('connection', (socket) => {
 		client.smembers('channels', (err, channels) => {
 			socket.emit('chat.channelList', channels);
 		});
+		
+		socket.emit('channel.initName', socket.channel);
 	});
 	
 	// Ajouter le message à la salle dans laquelle l'utilisateur est connecté
@@ -116,6 +118,8 @@ io.on('connection', (socket) => {
 				console.log(usersData);
 				io.in(socket.channel).emit('channel.initUsers', usersData);
 			});
+			
+			socket.emit('channel.initName', channel);
 		});
 	});
 	
@@ -130,30 +134,34 @@ io.on('connection', (socket) => {
 			io.emit('chat.channelList', channels);
 		});
 		
-		// Quitter la salle et entré dans l'autre
+		// Quitter la salle et entré dans la nouvelle
 		socket.leave(socket.channel, () => {
 			socket.join(channel);
 			consoleLog('chatroom', 'joinChannel', `${socket.username} leave channel "${socket.channel}" and join channel "${channel}".`);
 			
 			socket.channel = channel;
 			
-			// Afficher tout les messages de la salle
-			client.lrange(`messages:${socket.channel}`, 0, 10, (err, messagesData) => {
-				console.log(messagesData);
-				socket.emit('channel.initMessages', messagesData);
-			});
+			// Ajouter l'utilisateur à la liste de la salle
+			client.sadd(`users:${socket.channel}`, socket.username);
 			
-			// Afficher tout les utilisateurs de la salle
+			// Mettre son nom dans la liste des utilisateurs
 			client.smembers(`users:${socket.channel}`, (err, usersData) => {
 				console.log(usersData);
-				io.in(socket.channel).emit('channel.initUsers', usersData);
+				socket.emit('channel.initUsers', usersData);
 			});
+			
+			socket.emit('channel.initName', channel);
 		});
 	});
 	
 	// Afficher l'information qu'un utilisateur est entrain d'écrire
 	socket.on('channel.userIsTyping', () => {
-		socket.to(socket.channel).emit('channel.userIsTyping', socket.username);
+		socket.to(socket.channel).emit('channel.userIsTyping', socket.username);    
+	});
+	
+	// ping
+	socket.on('chat.ping', () => {
+		socket.emit('chat.ping');
 	});
 	
 	// Gérer les déconnections
